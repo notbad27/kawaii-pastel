@@ -120,32 +120,31 @@ def load_model():
                 )
                 print("✓ Base model downloaded and cached!")
             
-            # Load custom weights from safetensors file
-            print(f"Loading custom weights from: {model_path}")
+            # Load LoRA weights from safetensors file
+            print(f"Loading LoRA weights from: {model_path}")
             try:
-                state_dict = load_file(model_path)
-                print(f"Loaded {len(state_dict)} weight tensors from safetensors file")
+                # Load LoRA weights: pass directory and weight_name
+                # model_path is "/nyl_kawaii_pastel.safetensors"
+                lora_dir = os.path.dirname(model_path)  # "/"
+                lora_file = os.path.basename(model_path)  # "nyl_kawaii_pastel.safetensors"
                 
-                # Apply custom weights to UNet (most safetensors files contain UNet weights)
-                # Try UNet first, then VAE if UNet fails
+                print(f"Loading LoRA from directory: {lora_dir}, file: {lora_file}")
+                pipe.load_lora_weights(lora_dir, weight_name=lora_file)
+                print("✓ LoRA weights loaded successfully!")
+                
+                # Fuse LoRA weights for better performance (optional but recommended)
                 try:
-                    missing_keys, unexpected_keys = pipe.unet.load_state_dict(state_dict, strict=False)
-                    print(f"Applied weights to UNet - Missing: {len(missing_keys)}, Unexpected: {len(unexpected_keys)}")
-                    print("✓ Custom UNet weights applied successfully!")
-                except Exception as unet_error:
-                    print(f"Could not apply to UNet: {unet_error}")
-                    # Try VAE as fallback
-                    try:
-                        missing_keys, unexpected_keys = pipe.vae.load_state_dict(state_dict, strict=False)
-                        print(f"Applied weights to VAE - Missing: {len(missing_keys)}, Unexpected: {len(unexpected_keys)}")
-                        print("✓ Custom VAE weights applied successfully!")
-                    except Exception as vae_error:
-                        print(f"Could not apply to VAE either: {vae_error}")
-                        print("Warning: Custom weights not applied. Using base model only.")
+                    pipe.fuse_lora()
+                    print("✓ LoRA weights fused for optimal performance!")
+                except Exception as fuse_error:
+                    print(f"Note: Could not fuse LoRA weights: {fuse_error}")
+                    print("Continuing without fusion (slightly slower but still works)")
                 
-            except Exception as weight_error:
-                print(f"Warning: Could not load custom weights: {weight_error}")
-                print("Using base model without custom weights.")
+            except Exception as lora_error:
+                print(f"Error loading LoRA weights: {lora_error}")
+                import traceback
+                traceback.print_exc()
+                print("Warning: Could not load LoRA weights. Using base model only.")
             
             # Explicitly disable safety checker (double check)
             pipe.safety_checker = None
@@ -159,13 +158,13 @@ def load_model():
             except:
                 print("xformers not available, using default attention")
             
-            # Create img2img pipeline from the same model
+            # Create img2img pipeline from the same model (LoRA already applied to components)
             print("Creating img2img pipeline...")
             img2img_pipe = StableDiffusionImg2ImgPipeline(
                 vae=pipe.vae,
                 text_encoder=pipe.text_encoder,
                 tokenizer=pipe.tokenizer,
-                unet=pipe.unet,
+                unet=pipe.unet,  # UNet already has LoRA applied
                 scheduler=pipe.scheduler,
                 safety_checker=None,  # Disable safety checker
                 requires_safety_checker=False,  # Disable safety checker
@@ -175,6 +174,9 @@ def load_model():
             # Explicitly disable safety checker (double check)
             img2img_pipe.safety_checker = None
             img2img_pipe.requires_safety_checker = False
+            
+            # Note: LoRA weights are already applied since we're using the same UNet
+            print("✓ Img2Img pipeline created with LoRA weights!")
             
             if torch.cuda.is_available():
                 img2img_pipe = img2img_pipe.to("cuda")
