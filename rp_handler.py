@@ -348,6 +348,24 @@ if __name__ == '__main__':
             print(f"CUDA device: {torch.cuda.get_device_name(0)}")
         print("=" * 50)
         
+        # Check if model file exists
+        model_path = "/nyl_kawaii_pastel.safetensors"
+        if not os.path.exists(model_path):
+            raise FileNotFoundError(f"Model file not found at: {model_path}")
+        print(f"✓ Model file found: {model_path}")
+        
+        # Check network volume
+        print(f"Checking network volume at /workspace...")
+        if os.path.exists('/workspace'):
+            print(f"✓ /workspace exists")
+            if os.path.exists('/workspace/.cache/huggingface/hub/models--runwayml--stable-diffusion-v1-5'):
+                print(f"✓ Model cache found in network volume!")
+            else:
+                print(f"⚠ Model cache NOT found in network volume")
+                print(f"  Expected: /workspace/.cache/huggingface/hub/models--runwayml--stable-diffusion-v1-5")
+        else:
+            print(f"⚠ /workspace does not exist - network volume may not be mounted")
+        
         # Pre-load the model
         print("Pre-loading model...")
         print("This may take several minutes on first run...")
