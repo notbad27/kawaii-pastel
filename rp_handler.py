@@ -122,86 +122,86 @@ def load_model():
         # Go directly to base model + custom weights approach
         print("Loading base model and applying custom weights...")
         try:
-                # Load a base SD 1.5 model first
-                base_model = "runwayml/stable-diffusion-v1-5"
-                print(f"Loading base model: {base_model}")
-                print("Note: This may take a few minutes on first run...")
-                
-                # Use cache_dir from environment if network volume is available
-                cache_dir = os.environ.get('HUGGINGFACE_HUB_CACHE', None)
-                
-                # Try loading from pre-built cache (should always work if Docker build succeeded)
-                load_kwargs = {
-                    'torch_dtype': torch.float16 if torch.cuda.is_available() else torch.float32,
-                }
-                if cache_dir:
-                    load_kwargs['cache_dir'] = cache_dir
+            # Load a base SD 1.5 model first
+            base_model = "runwayml/stable-diffusion-v1-5"
+            print(f"Loading base model: {base_model}")
+            print("Note: This may take a few minutes on first run...")
+            
+            # Use cache_dir from environment if network volume is available
+            cache_dir = os.environ.get('HUGGINGFACE_HUB_CACHE', None)
+            
+            # Try loading from pre-built cache (should always work if Docker build succeeded)
+            load_kwargs = {
+                'torch_dtype': torch.float16 if torch.cuda.is_available() else torch.float32,
+            }
+            if cache_dir:
+                load_kwargs['cache_dir'] = cache_dir
 
-                pipe = StableDiffusionPipeline.from_pretrained(
-                    base_model,
-                    **load_kwargs
-                )
-                print("✓ Loaded base model from cache!")
+            pipe = StableDiffusionPipeline.from_pretrained(
+                base_model,
+                **load_kwargs
+            )
+            print("✓ Loaded base model from cache!")
+            
+            # Load custom weights from safetensors file
+            print(f"Loading custom weights from: {model_path}")
+            try:
+                state_dict = load_file(model_path)
+                print(f"Loaded {len(state_dict)} weight tensors from safetensors file")
                 
-                # Load custom weights from safetensors file
-                print(f"Loading custom weights from: {model_path}")
+                # Apply custom weights to UNet (most safetensors files contain UNet weights)
+                # Try UNet first, then VAE if UNet fails
                 try:
-                    state_dict = load_file(model_path)
-                    print(f"Loaded {len(state_dict)} weight tensors from safetensors file")
-                    
-                    # Apply custom weights to UNet (most safetensors files contain UNet weights)
-                    # Try UNet first, then VAE if UNet fails
+                    missing_keys, unexpected_keys = pipe.unet.load_state_dict(state_dict, strict=False)
+                    print(f"Applied weights to UNet - Missing: {len(missing_keys)}, Unexpected: {len(unexpected_keys)}")
+                    print("✓ Custom UNet weights applied successfully!")
+                except Exception as unet_error:
+                    print(f"Could not apply to UNet: {unet_error}")
+                    # Try VAE as fallback
                     try:
-                        missing_keys, unexpected_keys = pipe.unet.load_state_dict(state_dict, strict=False)
-                        print(f"Applied weights to UNet - Missing: {len(missing_keys)}, Unexpected: {len(unexpected_keys)}")
-                        print("✓ Custom UNet weights applied successfully!")
-                    except Exception as unet_error:
-                        print(f"Could not apply to UNet: {unet_error}")
-                        # Try VAE as fallback
-                        try:
-                            missing_keys, unexpected_keys = pipe.vae.load_state_dict(state_dict, strict=False)
-                            print(f"Applied weights to VAE - Missing: {len(missing_keys)}, Unexpected: {len(unexpected_keys)}")
-                            print("✓ Custom VAE weights applied successfully!")
-                        except Exception as vae_error:
-                            print(f"Could not apply to VAE either: {vae_error}")
-                            print("Warning: Custom weights not applied. Using base model only.")
-                    
-                except Exception as weight_error:
-                    print(f"Warning: Could not load custom weights: {weight_error}")
-                    print("Using base model without custom weights.")
+                        missing_keys, unexpected_keys = pipe.vae.load_state_dict(state_dict, strict=False)
+                        print(f"Applied weights to VAE - Missing: {len(missing_keys)}, Unexpected: {len(unexpected_keys)}")
+                        print("✓ Custom VAE weights applied successfully!")
+                    except Exception as vae_error:
+                        print(f"Could not apply to VAE either: {vae_error}")
+                        print("Warning: Custom weights not applied. Using base model only.")
                 
-                if torch.cuda.is_available():
-                    pipe = pipe.to("cuda")
-                
-                try:
-                    pipe.enable_xformers_memory_efficient_attention()
-                except:
-                    print("xformers not available, using default attention")
-                
-                # Create img2img pipeline from the same model
-                print("Creating img2img pipeline...")
-                img2img_pipe = StableDiffusionImg2ImgPipeline(
-                    vae=pipe.vae,
-                    text_encoder=pipe.text_encoder,
-                    tokenizer=pipe.tokenizer,
-                    unet=pipe.unet,
-                    scheduler=pipe.scheduler,
-                    safety_checker=pipe.safety_checker,
-                    feature_extractor=pipe.feature_extractor,
-                )
-                
-                if torch.cuda.is_available():
-                    img2img_pipe = img2img_pipe.to("cuda")
-                
-                try:
-                    img2img_pipe.enable_xformers_memory_efficient_attention()
-                except:
-                    pass
-                
-                print("✓ Model loaded successfully!")
-                print("✓ Img2Img pipeline ready!")
-                
-            except Exception as e2:
+            except Exception as weight_error:
+                print(f"Warning: Could not load custom weights: {weight_error}")
+                print("Using base model without custom weights.")
+            
+            if torch.cuda.is_available():
+                pipe = pipe.to("cuda")
+            
+            try:
+                pipe.enable_xformers_memory_efficient_attention()
+            except:
+                print("xformers not available, using default attention")
+            
+            # Create img2img pipeline from the same model
+            print("Creating img2img pipeline...")
+            img2img_pipe = StableDiffusionImg2ImgPipeline(
+                vae=pipe.vae,
+                text_encoder=pipe.text_encoder,
+                tokenizer=pipe.tokenizer,
+                unet=pipe.unet,
+                scheduler=pipe.scheduler,
+                safety_checker=pipe.safety_checker,
+                feature_extractor=pipe.feature_extractor,
+            )
+            
+            if torch.cuda.is_available():
+                img2img_pipe = img2img_pipe.to("cuda")
+            
+            try:
+                img2img_pipe.enable_xformers_memory_efficient_attention()
+            except:
+                pass
+            
+            print("✓ Model loaded successfully!")
+            print("✓ Img2Img pipeline ready!")
+            
+        except Exception as e2:
                 print(f"Error loading model: {e2}")
                 import traceback
                 traceback.print_exc()
