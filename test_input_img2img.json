@@ -1,0 +1,12 @@
+{
+    "input": {
+        "prompt": "kawaii pastel style, cute, soft colors, anime style",
+        "image": "BASE64_ENCODED_IMAGE_HERE",
+        "negative_prompt": "realistic, photorealistic, dark, harsh lighting",
+        "num_inference_steps": 50,
+        "guidance_scale": 7.5,
+        "strength": 0.75
+    }
+}
+
+

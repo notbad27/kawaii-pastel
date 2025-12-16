@@ -1,0 +1,10 @@
+{
+    "input": {
+        "prompt": "a cute kawaii pastel cat, pastel colors, soft lighting, high quality",
+        "negative_prompt": "blurry, low quality, distorted, ugly",
+        "num_inference_steps": 30,
+        "guidance_scale": 7.5,
+        "width": 512,
+        "height": 512
+    }
+}
