@@ -12,8 +12,20 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Pre-download base Stable Diffusion model (3.4GB) to avoid runtime download
+# This prevents "No space left on device" errors when workers start
+# Note: This step requires ~4GB free space during build
+RUN python3 -c "from diffusers import StableDiffusionPipeline; \
+    import torch; \
+    print('Pre-downloading base SD 1.5 model...'); \
+    StableDiffusionPipeline.from_pretrained(\
+        'runwayml/stable-diffusion-v1-5', \
+        torch_dtype=torch.float16, \
+        cache_dir='/root/.cache/huggingface'\
+    ); \
+    print('Base model cached successfully!')"
+
 # Copy model file
-# Note: Base Stable Diffusion model will be downloaded at runtime by the handler
 COPY nyl_kawaii_pastel.safetensors /
 
 # Copy your handler file
